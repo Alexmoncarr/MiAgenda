@@ -1,80 +1,94 @@
 package com.example.miagenda;
 
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private EditText editText1, editText2;
-    private DatabaseHelper dbHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        editText1 = (EditText)findViewById(R.id.editText1);
-        editText2 = (EditText)findViewById(R.id.editText2);
-
-        dbHelper = new DatabaseHelper(this);
+        editText1 = findViewById(R.id.editText1);
+        editText2 = findViewById(R.id.editText2);
     }
 
-    //Método para guardar los datos:
     public void guardar(View view) {
-        String nombre = editText1.getText().toString();
-        String datos = editText2.getText().toString();
+        final String nombre = editText1.getText().toString();
+        final String datos = editText2.getText().toString();
 
-        // Obtiene la base de datos en modo escritura
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        StringRequest stringRequest = new StringRequest(Request.Method.POST, "http://192.168.1.131/appContactosAndroid/guardar_contactos.php",
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        Toast.makeText(getApplicationContext(), "OPERACION EXITOSA", Toast.LENGTH_SHORT).show();
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Toast.makeText(getApplicationContext(), error.toString(), Toast.LENGTH_SHORT).show();
+                    }
+                }) {
+            @Override
+            protected Map<String, String> getParams() {
+                Map<String, String> params = new HashMap<>();
+                params.put("nombre", nombre);
+                params.put("datos", datos);
+                return params;
+            }
+        };
 
-        // Crea un nuevo mapa de valores, donde las columnas son los nombres de las columnas
-        ContentValues values = new ContentValues();
-        values.put("nombre", nombre);
-        values.put("datos", datos);
-
-        // Inserta la nueva fila, retorna el valor de clave primaria de la nueva fila
-        long newRowId = db.insert("Contactos", null, values);
-
-        Toast.makeText(this, "Contacto guardado con ID: " + newRowId, Toast.LENGTH_SHORT).show();
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
+        requestQueue.add(stringRequest);
     }
 
-    //Método para recuperar los datos:
     public void buscar(View view) {
-        String nombre = editText1.getText().toString();
+        final String nombre = editText1.getText().toString();
+        String url = "http://192.168.1.131/appContactosAndroid/buscar_contactos.php?nombre=" + nombre;
 
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        try {
+                            String datos = response.getString("datos");
+                            editText2.setText(datos);
+                        } catch (JSONException e) {
+                            Toast.makeText(getApplicationContext(), e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Toast.makeText(getApplicationContext(), "ERROR DE CONEXIÓN", Toast.LENGTH_SHORT).show();
+                    }
+                });
 
-        // Define una proyección que especifica qué columnas del resultado quieres obtener
-        String[] projection = {"datos"};
-
-        // Filtro para la cláusula WHERE
-        String selection = "nombre = ?";
-        String[] selectionArgs = {nombre};
-
-        Cursor cursor = db.query(
-                "Contactos",   // La tabla para consultar
-                projection,    // Las columnas para retornar
-                selection,     // Las columnas para la cláusula WHERE
-                selectionArgs, // Los valores para la cláusula WHERE
-                null,          // Agrupar las filas
-                null,          // Filtrar por filas que agrupan
-                null           // El orden de las filas
-        );
-
-        if (cursor.moveToFirst()) {
-            String datos = cursor.getString(cursor.getColumnIndexOrThrow("datos"));
-            editText2.setText(datos);
-        } else {
-            Toast.makeText(this, "No se ha encontrado ningún dato", Toast.LENGTH_SHORT).show();
-        }
-        cursor.close();
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
+        requestQueue.add(jsonObjectRequest);
     }
 }
